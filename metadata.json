@@ -1,0 +1,9 @@
+{
+  "name": "ARISE",
+  "description": "A modern, intelligent AI assistant powered by Gemini 2.5 and 3.0 models featuring chat, research, education, shopping, image generation, and video creation.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera",
+    "geolocation"
+  ]
+}
