@@ -24,7 +24,7 @@ import {
   Menu, Send, Image as ImageIcon, Sparkles, 
   ShoppingBag, GraduationCap, MapPin, Moon, Sun,
   Loader2, Camera, MonitorPlay, PanelLeftClose, PanelLeftOpen,
-  ExternalLink, Youtube, Globe, Copy, Check
+  ExternalLink, Youtube, Copy, Check, X
 } from 'lucide-react';
 
 export default function App() {
@@ -542,7 +542,7 @@ export default function App() {
                    {attachment && (
                      <div className="mb-2 inline-flex items-center bg-white dark:bg-zinc-700 rounded-lg px-3 py-1.5 border border-zinc-200 dark:border-zinc-600 shadow-sm animate-in zoom-in-95">
                        <span className="text-xs font-medium truncate max-w-[150px]">Image Attached</span>
-                       <button onClick={() => setAttachment(null)} className="ml-2 text-red-500 hover:text-red-600 p-0.5 rounded"><PanelLeftClose size={12}/></button>
+                       <button onClick={() => setAttachment(null)} className="ml-2 text-red-500 hover:text-red-600 p-0.5 rounded"><X size={12}/></button>
                      </div>
                    )}
                    <textarea 
