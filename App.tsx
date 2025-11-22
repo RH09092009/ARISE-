@@ -40,7 +40,8 @@ export default function App() {
   
   // Features Toggles
   const [enableSearch, setEnableSearch] = useState(false); 
-  const [enableMaps, setEnableMaps] = useState(false); // Kept internal for now or linked to search
+  // Fixed: Removed unused setEnableMaps setter to prevent build error
+  const [enableMaps] = useState(false); 
   
   // Attachments
   const [attachment, setAttachment] = useState<{data: string, mimeType: string} | null>(null);
