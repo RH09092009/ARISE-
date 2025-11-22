@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Message, 
@@ -40,7 +39,6 @@ export default function App() {
   
   // Features Toggles
   const [enableSearch, setEnableSearch] = useState(false); 
-  // Fixed: Removed unused setEnableMaps setter to prevent build error
   const [enableMaps] = useState(false); 
   
   // Attachments

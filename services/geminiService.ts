@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { 
   MODEL_FLASH, 
@@ -15,9 +14,18 @@ interface AIStudio {
   openSelectKey: () => Promise<void>;
 }
 
+const getApiKey = () => {
+  // Safe access to process.env.API_KEY
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  return ''; // Return empty string if not found, will likely cause API error but prevents crash
+};
+
 const getAI = async (requirePaid: boolean = false) => {
   // Access window.aistudio safely
   const aiStudio = (window as any).aistudio as AIStudio | undefined;
+  const apiKey = getApiKey();
 
   if (requirePaid && aiStudio) {
     const hasKey = await aiStudio.hasSelectedApiKey();
@@ -25,10 +33,10 @@ const getAI = async (requirePaid: boolean = false) => {
       await aiStudio.openSelectKey();
     }
     // In paid flow, we re-instantiate to ensure key is picked up internally or injected
-    return new GoogleGenAI({ apiKey: process.env.API_KEY }); 
+    return new GoogleGenAI({ apiKey: apiKey }); 
   }
 
-  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return new GoogleGenAI({ apiKey: apiKey });
 };
 
 const getUserLocation = async (): Promise<{latitude: number, longitude: number} | undefined> => {
