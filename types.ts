@@ -6,17 +6,63 @@ export enum Sender {
 
 export enum AppMode {
   Chat = 'chat', // General, fast
-  Thinking = 'thinking', // Deep reasoning
   Education = 'education',
   Shopping = 'shopping',
-  ImageGen = 'image-gen',
+}
+
+export type Language = 'en' | 'bn';
+
+export interface VerifiedLink {
+  store: string;
+  price: number;
+  currency: string;
+  url: string;
+  rating?: number;
+}
+
+export interface NearbyStore {
+  name: string;
+  distance: string;
+  status: string; // "Open Now", "Closed"
+  mapLink: string;
+}
+
+export interface Product {
+  id: string;
+  title: string;
+  price: number;
+  currency: string;
+  seller: string;
+  rating: number;
+  reviews: number;
+  image: string;
+  link: string;
+  description: string;
+  category?: string;
+  features?: string[];
+  
+  // New Mega Features
+  trustScore?: number; // 0-100
+  globalPrice?: { price: number; currency: string };
+  scamWarning?: boolean;
+  isBestValue?: boolean;
+  dealScore?: number; // 0-100 for Bargain Hunter
+  pros?: string[];
+  cons?: string[];
+  verifiedLinks?: VerifiedLink[];
+  nearbyStores?: NearbyStore[];
+  deliveryEstimate?: string;
+}
+
+export interface WishlistItem extends Product {
+  addedAt: number;
 }
 
 export interface Message {
   id: string;
   sender: Sender;
   text?: string;
-  imageUrl?: string; // For generated images or user uploads
+  imageUrl?: string; // For user uploads
   videoUrl?: string; // For generated videos
   timestamp: number;
   isTyping?: boolean;
@@ -24,20 +70,7 @@ export interface Message {
     search?: { title: string; uri: string }[];
     maps?: { title: string; uri: string }[];
   };
-}
-
-export interface ImageGenerationConfig {
-  prompt: string;
-  aspectRatio: string;
-  size?: "1K" | "2K" | "4K";
-  imageBytes?: string; // For editing
-  mimeType?: string;
-}
-
-export interface VideoGenerationConfig {
-  prompt: string;
-  aspectRatio: "16:9" | "9:16";
-  resolution: "720p" | "1080p";
+  productResults?: Product[]; // For Shopping Mode results
 }
 
 export interface ChatSession {

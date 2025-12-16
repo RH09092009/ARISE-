@@ -1,12 +1,11 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { 
   MODEL_FLASH, 
   MODEL_FLASH_LITE, 
-  MODEL_PRO_THINKING, 
-  MODEL_PRO_IMAGE, 
-  MODEL_FLASH_IMAGE
+  SHOPPING_PROMPT_CORE
 } from "../constants";
-import { ImageGenerationConfig } from "../types";
+import { Product } from "../types";
 
 // Define a local interface for AIStudio to avoid global namespace pollution/conflicts
 interface AIStudio {
@@ -14,26 +13,22 @@ interface AIStudio {
   openSelectKey: () => Promise<void>;
 }
 
-const getApiKey = () => {
-  // Safe access to process.env.API_KEY
-  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-    return process.env.API_KEY;
-  }
-  return ''; // Return empty string if not found, will likely cause API error but prevents crash
-};
-
 const getAI = async (requirePaid: boolean = false) => {
-  // Access window.aistudio safely
+  // Use type assertion to avoid TypeScript errors with window.aistudio
   const aiStudio = (window as any).aistudio as AIStudio | undefined;
-  const apiKey = getApiKey();
 
   if (requirePaid && aiStudio) {
     const hasKey = await aiStudio.hasSelectedApiKey();
     if (!hasKey) {
       await aiStudio.openSelectKey();
     }
-    // In paid flow, we re-instantiate to ensure key is picked up internally or injected
-    return new GoogleGenAI({ apiKey: apiKey }); 
+    return new GoogleGenAI({ apiKey: process.env.API_KEY }); 
+  }
+
+  // Robust API Key check for production vs development
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+      console.warn("API Key not found in process.env. attempting fallback or might fail.");
   }
 
   return new GoogleGenAI({ apiKey: apiKey });
@@ -62,10 +57,9 @@ export const generateChatResponseStream = async (
   systemInstruction?: string,
   imageAttachment?: { data: string; mimeType: string },
   enableSearch: boolean = false,
-  enableMaps: boolean = false,
-  thinkingMode: boolean = false
+  enableMaps: boolean = false
 ) => {
-  const ai = await getAI(thinkingMode); 
+  const ai = await getAI(false); 
   
   const tools: any[] = [];
   if (enableSearch) tools.push({ googleSearch: {} });
@@ -89,11 +83,6 @@ export const generateChatResponseStream = async (
     toolConfig: toolConfig,
   };
 
-  if (thinkingMode) {
-    config.thinkingConfig = { thinkingBudget: 32768 };
-    // Do not set maxOutputTokens when thinking is enabled
-  }
-
   const chat = ai.chats.create({
     model: modelName,
     config,
@@ -102,7 +91,6 @@ export const generateChatResponseStream = async (
 
   let msgContent: any = message;
   
-  // Handle image input (Multi-modal)
   if (imageAttachment) {
     msgContent = [
         { text: message },
@@ -113,50 +101,74 @@ export const generateChatResponseStream = async (
   return chat.sendMessageStream({ message: msgContent });
 };
 
-export const generateImage = async (config: ImageGenerationConfig) => {
-  // Logic: If size is specified, we MUST use Pro.
-  // If imageBytes are provided (editing), we default to Flash Image unless Pro features are explicitly requested via size.
-  // The prompt asks to use "Gemini 2.5 Flash Image" for editing ("Add a retro filter").
-  
-  const isPro = !!config.size; 
-  const ai = await getAI(isPro);
+// Supercharged Shopping Search
+export const searchProducts = async (query: string, imageBase64?: string, language: 'en' | 'bn' = 'en'): Promise<Product[]> => {
+  const ai = await getAI(false);
+  const loc = await getUserLocation();
 
-  const model = isPro ? MODEL_PRO_IMAGE : MODEL_FLASH_IMAGE;
+  // Combine the strict JSON requirement with the powerful shopping persona
+  const prompt = `
+    ${SHOPPING_PROMPT_CORE}
 
-  const parts: any[] = [{ text: config.prompt }];
-  
-  // If editing (imageBytes provided)
-  if (config.imageBytes) {
-    parts.push({
-        inlineData: {
-            data: config.imageBytes,
-            mimeType: config.mimeType || 'image/jpeg'
-        }
+    User Request: "${query}"
+    Language Preference: ${language === 'bn' ? 'Bangla' : 'English'}
+    User Location detected: ${loc ? 'Yes' : 'No'}
+
+    Task:
+    1. Analyze the request (and image if provided).
+    2. Search Google for products.
+    3. EXTRACT REAL IMAGE URLs from the search results. Look for high-quality product images from major retailers (Amazon, official brand sites, etc.). The 'image' field MUST be a valid, direct URL.
+    4. Return a STRICT JSON array of 15-20 products.
+    
+    JSON Format Per Object:
+    - id: unique string
+    - title: product name
+    - price: number
+    - currency: symbol
+    - seller: store name
+    - rating: number (1-5)
+    - reviews: count
+    - image: <REAL_VALID_URL_FROM_SEARCH_RESULTS>
+    - link: direct product link
+    - description: short description
+    - isBestValue: boolean (true if it's the best deal)
+    - trustScore: number (0-100)
+    - scamWarning: boolean (true if potentially unsafe)
+    - globalPrice: { price: number, currency: string } (Optional)
+    - pros: string[] (3-5 pros)
+    - cons: string[] (1-2 cons)
+    - verifiedLinks: [{ store: "Amazon", price: 100, currency: "$", url: "..." }]
+    - nearbyStores: [{ name: "Store Name", distance: "2km", status: "Open", mapLink: "..." }]
+
+    IMPORTANT: Return ONLY the raw JSON array. No markdown.
+  `;
+
+  const parts: any[] = [{ text: prompt }];
+  if (imageBase64) {
+    parts.push({ inlineData: { data: imageBase64, mimeType: 'image/jpeg' } });
+  }
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL_FLASH,
+      contents: { parts },
+      config: {
+        tools: [{ googleSearch: {} }, { googleMaps: {} }],
+        toolConfig: loc ? { retrievalConfig: { latLng: loc } } : undefined
+      }
     });
-  }
 
-  const generationConfig: any = {
-    imageConfig: {
-        aspectRatio: config.aspectRatio,
+    const text = response.text || "[]";
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    const cleanJson = jsonMatch ? jsonMatch[0] : "[]";
+    
+    const products = JSON.parse(cleanJson);
+    if (Array.isArray(products)) {
+      return products as Product[];
     }
-  };
-
-  if (isPro && config.size) {
-      generationConfig.imageConfig.imageSize = config.size;
+    return [];
+  } catch (error) {
+    console.error("Shopping Search Error:", error);
+    return [];
   }
-
-  // For Flash Image / Pro Image Preview we use generateContent
-  const response = await ai.models.generateContent({
-    model: model,
-    contents: { parts },
-    config: generationConfig
-  });
-
-  // Extract image
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-    }
-  }
-  throw new Error("No image generated");
 };
